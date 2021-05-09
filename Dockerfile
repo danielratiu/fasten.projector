@@ -19,12 +19,21 @@ FROM debian AS ideDownloader
 # prepare tools:
 RUN apt-get update
 RUN apt-get install wget -y
+RUN apt-get install unzip -y
 # download IDE to the /ide dir:
 WORKDIR /download
 ARG downloadUrl
 ###### RUN wget -q $downloadUrl -O - | tar -xz
-RUN wget -q $downloadUrl -O - | unzip
-RUN find . -maxdepth 1 -type d -name * -execdir mv {} /ide \;
+RUN wget -q $downloadUrl -O fasten.zip 
+RUN unzip -q fasten.zip
+RUN unzip -q fasten-2020.3-SNAPSHOT.zip
+RUN rm fasten.zip
+RUN rm fasten-2020.3-SNAPSHOT.zip 
+### RUN find . -maxdepth 1 -type d -name * -execdir mv {} /ide \;
+RUN mv fasten-2020.3-SNAPSHOT /ide
+RUN rm -rf /ide/jbr
+RUN wget -q https://bintray.com/jetbrains/intellij-jbr/download_file?file_path=jbr-11_0_6-linux-x64-b684.1.tar.gz -O jbr.tar.gz
+RUN tar -C '/ide/' -zxvf "jbr.tar.gz"
 
 FROM amazoncorretto:11 as projectorGradleBuilder
 
@@ -45,18 +54,22 @@ RUN apt-get install unzip -y
 # create the Projector dir:
 ENV PROJECTOR_DIR /projector
 RUN mkdir -p $PROJECTOR_DIR
+RUN pwd
 # copy IDE:
 COPY --from=ideDownloader /ide $PROJECTOR_DIR/ide
 # copy projector files to the container:
-ADD projector-docker/static $PROJECTOR_DIR
+ADD fasten.projector/static $PROJECTOR_DIR
 # copy projector:
 COPY --from=projectorGradleBuilder $PROJECTOR_DIR/projector-server/projector-server/build/distributions/projector-server-1.0-SNAPSHOT.zip $PROJECTOR_DIR
 # prepare IDE - apply projector-server:
 RUN unzip $PROJECTOR_DIR/projector-server-1.0-SNAPSHOT.zip
 RUN rm $PROJECTOR_DIR/projector-server-1.0-SNAPSHOT.zip
 RUN mv projector-server-1.0-SNAPSHOT $PROJECTOR_DIR/ide/projector-server
-RUN mv $PROJECTOR_DIR/ide-projector-launcher.sh $PROJECTOR_DIR/ide/bin
+RUN mv $PROJECTOR_DIR/fasten-projector.sh $PROJECTOR_DIR/ide/bin
+RUN mv $PROJECTOR_DIR/mps64.vmoptions $PROJECTOR_DIR/ide/bin
 RUN chmod 644 $PROJECTOR_DIR/ide/projector-server/lib/*
+RUN mkdir $PROJECTOR_DIR/ide/caches
+RUN chmod -R 777 $PROJECTOR_DIR/ide/caches
 
 FROM debian:10
 
@@ -71,11 +84,13 @@ RUN true \
     && apt-get install libxext6 libxrender1 libxtst6 libxi6 libfreetype6 -y \
 # packages for user convenience:
     && apt-get install git bash-completion -y \
+    && apt-get install vim -y \
 # packages for IDEA (to disable warnings):
     && apt-get install procps -y \
 # clean apt to reduce image size:
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /var/cache/apt
+
 
 ARG downloadUrl
 
@@ -110,7 +125,7 @@ RUN true \
     && mv $PROJECTOR_DIR/$PROJECTOR_USER_NAME /home \
     && useradd -m -d /home/$PROJECTOR_USER_NAME -s /bin/bash $PROJECTOR_USER_NAME \
     && chown -R $PROJECTOR_USER_NAME.$PROJECTOR_USER_NAME /home/$PROJECTOR_USER_NAME \
-    && chown -R $PROJECTOR_USER_NAME.$PROJECTOR_USER_NAME $PROJECTOR_DIR/ide/bin \
+    && chown -R $PROJECTOR_USER_NAME.$PROJECTOR_USER_NAME $PROJECTOR_DIR/ide \
     && chown $PROJECTOR_USER_NAME.$PROJECTOR_USER_NAME run.sh
 
 USER $PROJECTOR_USER_NAME

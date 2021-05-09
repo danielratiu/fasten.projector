@@ -20,7 +20,5 @@ set -e # Any command which returns non-zero exit code will cause this shell scri
 set -x # Activate debugging to show execution details: all commands will be printed before execution
 
 containerName=${1:-projector-fasten}
-downloadUrl=${2:-https://github.com/danielratiu/fasten.projector/releases/download/release%2Fsnapshot-2021-05-09/fasten-distribution_2021_05_09.zip}
 
-# build container:
-DOCKER_BUILDKIT=1 docker build --progress=plain -t "$containerName" --build-arg buildGradle=true --build-arg "downloadUrl=$downloadUrl" -f Dockerfile ..
+docker run --rm -p 8887:8887 -it "$containerName"
